@@ -71,9 +71,10 @@ export const useUsersStore = defineStore('users', () => {
 
   async function updateUser(id: string, patch: Partial<Omit<User, 'id'>>) {
     error.value = null;
+    const body = JSON.stringify(patch)
     const saved = await json<User>(`${BASE}/users/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify(patch),
+      body,
     });
     const i = users.value.findIndex(u => u.id === id);
     if (i !== -1) users.value[i] = saved;

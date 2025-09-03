@@ -4,11 +4,11 @@ syntax = "proto3";
 
 package users.v1;
 
-message User {
+message UserObject {
     string id = 1;
     string name = 2;
     string mood = 3;
     bool isReal = 4;
-    string timeCreated = 5;
-    string timeUpdated = 6; 
+    int64 timeCreated = 5;
+    int64 timeUpdated = 6; 
 }

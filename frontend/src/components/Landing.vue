@@ -18,9 +18,21 @@ defineProps<{ msg: string }>()
 const store = useUsersStore()
 const { users } = storeToRefs(store)
 
+const NameSchema = z.string().trim().min(1, { message: 'Name is required.' })
+  .max(32, {message: 'Mood must be ≤ 32 characters.'})
+  .regex(/^([^0-9]*)$/, { message: 'No numbers allowed.' })
+  .transform(v => v.replace(/\s+/g, ' ')); // collapse multiple spaces
+
+const MoodSchema = z.string()
+  .trim()
+  .min(1, { message: 'Mood is required.' })
+  .max(32, { message: 'Mood must be ≤ 32 characters.' })
+  .regex(/^[A-Za-z]+$/, { message: 'Use letters A–Z only.' });
+
+
 const schema = z.object({
-  name: z.string().min(1, { message: 'Name is required.' }),
-  mood: z.string().min(1, { message: 'Mood is required.' })
+  name: NameSchema,
+  mood: MoodSchema
 })
 type Values = z.infer<typeof schema>
 const resolver = zodResolver(schema)
@@ -59,6 +71,8 @@ function onFormSubmit(e: FormSubmitEvent<Record<string, unknown>>) {
 <template>
   <div class="greetings">
     <h1 class="green">{{ msg }}</h1>
+    <br>
+    <h3>self-survey. big picture.</h3>
   </div>
 
   <div class="card flex justify-center">
@@ -102,12 +116,40 @@ function onFormSubmit(e: FormSubmitEvent<Record<string, unknown>>) {
     <br>
     <Button @click="onShow" :label="showFlag ? 'Stop' : 'Show Names'" :style="showFlag ? {'background-color': 'red'} : null"/>
 
-    <ul class="mt-4" v-if="showFlag">
-      <li v-for="u in users" :key="u.id">
-        {{ u.name }} is feeling {{ u.mood }} and is very {{ u.isReal ? 'real' : 'much like a robot, beep-boop!' }}
-        <Button @click="store.removeUser(u.id)" label="Remove" />
-      </li>
-    </ul>
+<ul class="mt-4" v-if="showFlag">
+  <li v-for="u in users" :key="u.id" class="li-entry">
+    <InputText
+      size="small"
+      v-model="u.name"
+      placeholder="Name"
+      class="inline-input"
+    />
+    <span>is feeling</span>
+    <InputText
+      size="small"
+      v-model="u.mood"
+      placeholder="Mood"
+      class="inline-input"
+    />
+    <span>and is most definitely {{ u.isReal ? 'real' : 'a robot, beep-boop, jee wilikers!' }}</span>
+
+    <Button
+      size="small"
+      class="inline-btn"
+      label="Update"
+      @click="store.updateUser(u.id, { name: u.name, mood: u.mood })"
+    />
+    <Button
+      size="small"
+      class="inline-btn"
+      label="Remove"
+      severity="danger"
+      @click="store.removeUser(u.id)"
+    />
+  </li>
+</ul>
+
+
   </div>
 </template>
 
@@ -115,4 +157,39 @@ function onFormSubmit(e: FormSubmitEvent<Record<string, unknown>>) {
 h1 { font-weight: 500; font-size: 2.6rem; position: relative; top: -10px; }
 h3 { font-size: 1.2rem; font-weight: 600; }
 .greetings h1, .greetings h3 { text-align: center; }
+.greetings { margin-bottom: 15vh ;}
+/* Make each row tidy and evenly spaced */
+.li-entry {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;                 /* natural spacing between all inline items */
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--p-surface-300, #e5e7eb);
+  border-radius: 10px;
+  background: var(--p-surface-0, #fff);
+}
+
+/* Compact, nicer inputs */
+.inline-input {
+  min-width: 120px;
+  max-width: 200px;
+  margin: 0 6px;            /* left/right margins */
+  padding: 0.25rem 0.5rem;  /* a touch smaller */
+  font-size: 0.92rem;
+  border-radius: 8px;
+}
+
+/* Subtle placeholder + focus treatment */
+.inline-input::placeholder { opacity: 0.65; }
+.inline-input:focus {
+  outline: none;
+  border-color: #60a5fa;               /* soft blue */
+  box-shadow: 0 0 0 2px rgba(96,165,250,.25);
+}
+
+/* Small, even spacing for both buttons */
+.inline-btn { margin-left: 6px; }
+
 </style>
