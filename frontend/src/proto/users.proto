@@ -1,0 +1,14 @@
+// users.proto
+
+syntax = "proto3";
+
+package users.v1;
+
+message User {
+    string id = 1;
+    string name = 2;
+    string mood = 3;
+    bool isReal = 4;
+    string timeCreated = 5;
+    string timeUpdated = 6; 
+}
