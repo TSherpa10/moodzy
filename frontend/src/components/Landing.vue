@@ -1,6 +1,6 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch } from 'vue' // NEW: onUnmounted, watch
 import { Form } from '@primevue/forms'
 import type { FormInstance, FormSubmitEvent } from '@primevue/forms'
 import InputText from 'primevue/inputtext'
@@ -10,7 +10,7 @@ import { z } from 'zod'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { useToast } from 'primevue/usetoast'
 
-import { useUsersStore } from '@/stores/users'
+import { useUsersStore } from '@/stores/users.ts'
 import { storeToRefs } from 'pinia'
 
 defineProps<{ msg: string }>()
@@ -29,50 +29,62 @@ const MoodSchema = z.string()
   .max(32, { message: 'Mood must be ≤ 32 characters.' })
   .regex(/^[A-Za-z]+$/, { message: 'Use letters A–Z only.' });
 
-
-const schema = z.object({
-  name: NameSchema,
-  mood: MoodSchema
-})
+const schema = z.object({ name: NameSchema, mood: MoodSchema })
 type Values = z.infer<typeof schema>
 const resolver = zodResolver(schema)
 
 const toast = useToast()
-
-// Use your own reactive model for v-model
 const formData = reactive<Values>({ name: '', mood: '' })
-
 const formRef = ref<FormInstance | null>(null)
 const showFlag = ref(false)
 
-onMounted(() => { store.ensureLoaded(); });
+// NEW: hold a disposer returned by store.startPolling()
+let stopPolling: (() => void) | null = null
+
+// keep your initial load as-is (does nothing if already fetched)
+onMounted(() => { 
+  store.ensureLoaded()
+  stopPolling = store.startPolling(1500)  // poll every second
+ })
+
+// NEW: start/stop polling when Show/Stop toggles
+watch(showFlag, async (on) => {
+  if (on) {
+    await store.ensureLoaded()          // make sure we have an initial list
+  } else {
+    stopPolling?.()
+    stopPolling = null
+  }
+})
+
+// NEW: cleanup if user navigates away while polling
+onUnmounted(() => { stopPolling?.(); stopPolling = null })
 
 function onShow() {
   showFlag.value = !showFlag.value
 }
 
-function onFormSubmit(e: FormSubmitEvent<Record<string, unknown>>) {
-  // If invalid, let the messages show (because $form.submitted becomes true)
-  if (!e.valid) return
+function onClear() {
+  store.clear();
+  toast.add({ severity: 'error', summary: 'Deleted all entries.', life: 2000 })
+}
 
-  // Valid submit
+function onFormSubmit(e: FormSubmitEvent<Record<string, unknown>>) {
+  if (!e.valid) return
   store.addUser({ name: formData.name, mood: formData.mood })
   toast.add({ severity: 'success', summary: 'Form is submitted.', life: 2000 })
-
-  // 1) Clear form meta so "submitted" doesn't keep errors visible
   formRef.value?.reset()
-
-  // 2) Then clear your model (inputs update via v-model)
   formData.name = ''
   formData.mood = ''
 }
 </script>
 
+
 <template>
   <div class="greetings">
     <h1 class="green">{{ msg }}</h1>
     <br>
-    <h3>self-survey. big picture.</h3>
+    <h3>small survey. big picture.</h3>
   </div>
 
   <div class="card flex justify-center">
@@ -115,6 +127,7 @@ function onFormSubmit(e: FormSubmitEvent<Record<string, unknown>>) {
     <br>
     <br>
     <Button @click="onShow" :label="showFlag ? 'Stop' : 'Show Names'" :style="showFlag ? {'background-color': 'red'} : null"/>
+    <Button @click="onClear" :label="'Delete All'" class="delete-btn" />
 
 <ul class="mt-4" v-if="showFlag">
   <li v-for="u in users" :key="u.id" class="li-entry">
@@ -191,5 +204,21 @@ h3 { font-size: 1.2rem; font-weight: 600; }
 
 /* Small, even spacing for both buttons */
 .inline-btn { margin-left: 6px; }
+
+.delete-btn {
+  background-color: #ef4444; /* red-500 */
+  border-color: #ef4444;
+  color: #fff;
+  margin-left: 10px;
+}
+.delete-btn:hover {
+  background-color: #b91c1c;
+  border-color: #b91c1c;
+}
+
+.delete-btn:active {
+  background-color: #8A0000;
+  border-color: #8A0000;
+}
 
 </style>
