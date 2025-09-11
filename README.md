@@ -4,8 +4,8 @@
 
 Moodzy is a simple webapp designed to survey your name and mood! Join a community of people!
 
-Note: This is a tutorial webapp designed for the purpose of learning Vue, Google protocol buffers and zeromq publisher/subscriber model, and system design.
-Note x2: Zmq publisher is intentionally omitted, use your own service and publish to ports 9000 and/or 9001!
+Note: This is a tutorial webapp designed for the purpose of learning Vue, Google protocol buffers and zeromq publisher/subscriber model, web sockets, and system design.
+Note x2: The zmq publish service is intentionally omitted, please use your own system to publish through ports 9000 - 9005!
 
 ### System Design:
 
