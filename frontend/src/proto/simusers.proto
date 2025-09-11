@@ -1,0 +1,14 @@
+// users.proto
+
+syntax = "proto3";
+
+package users.v1;
+
+message SimUserObject {
+    string id = 1;
+    string name = 2;
+    int32 mood = 3;
+    bool isReal = 4;
+    int64 timeCreated = 5;
+    int64 timeUpdated = 6; 
+}

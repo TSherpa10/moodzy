@@ -9,7 +9,19 @@ export interface User {
   isReal: boolean
 }
 
+let currentWebSocket: WebSocket | null = null
+
+type WsMsg = { type : string, payload : {id : string, name : string, mood: string, isReal : boolean, timeCreated : number, timeUpdated : number } };
+
+function buildWsUrl(path = "/sim/publish", port = 9006) {
+  const isSecure = location.protocol === "https:";
+  const scheme = isSecure ? "wss" : "ws";
+  const host = location.hostname; // not hardcoded 'localhost'
+  return `${scheme}://${host}:${port}${path}`;
+}
+
 const BASE = 'http://localhost:3000'
+const WEBSOCKET_BASE = buildWsUrl()
 
 export const useUsersStore = defineStore('users', () => {
   // state
@@ -20,9 +32,6 @@ export const useUsersStore = defineStore('users', () => {
 
   // getters
   const count = computed(() => users.value.length)
-  const realUsers = computed(() => users.value.filter(u => u.isReal))
-  const fakeUsers = computed(() => users.value.filter(u => !u.isReal))
-  const byId = (id: string) => users.value.find(u => u.id === id) ?? null
 
   // helpers
   async function json<T>(url: string, init?: RequestInit): Promise<T> {
@@ -34,6 +43,41 @@ export const useUsersStore = defineStore('users', () => {
     if (!res.ok) throw new Error(`${init?.method ?? 'GET'} ${url} → ${res.status}`)
     return (await res.json()) as T
   }
+
+  function connectWebSocket(url = WEBSOCKET_BASE, close = false) {
+    if (close) {
+      currentWebSocket?.close()
+      return
+    }
+    const ws = new window.WebSocket(url);
+    currentWebSocket = ws
+    ws.onopen = () => console.log("Client connected to web socket");
+    ws.onmessage = (e) => {
+      const data = e.data;
+      if (typeof(data) == "string") {
+        const msg = JSON.parse(data) as WsMsg;
+        if (msg.type == "simuser") {
+          const pl = msg.payload;
+          const user = {id: pl.id, name: pl.name, mood: pl.mood, isReal: pl.isReal}
+          console.log(`received user: ${user}`);
+          let newUserFlag = 1;
+          users.value.forEach(u => {
+            if (u.id == pl.id) {
+              u.mood = pl.mood // same user, but they're feeling X mood now instead of Y.
+              newUserFlag = 0;
+            }
+          });
+          // out of scope, if there was no user initially we just add them to users.
+          if (newUserFlag == 1) {
+            users.value.unshift(user);
+            console.log(`we don't always hit this`);
+          }
+        }
+        else {
+          console.log(`Potentially malicious message intercepted: ${msg.payload}`);
+        }
+      }
+    }};
 
   // actions
   async function fetchUsers() {
@@ -66,10 +110,6 @@ export const useUsersStore = defineStore('users', () => {
     return created
   }
 
-  async function addSimulatedUser(payload: { name: string; mood: string }) {
-    return addUser({ ...payload, isReal: false })
-  }
-
   async function updateUser(id: string, patch: Partial<Omit<User, 'id'>>) {
     error.value = null
     const saved = await json<User>(`${BASE}/users/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
@@ -87,37 +127,19 @@ export const useUsersStore = defineStore('users', () => {
     return true
   }
 
-  // NEW: light polling to keep in sync with backend REST
-  function startPolling(intervalMs = 2000) {
-    let timer: number | null = null
-
-    const tick = async () => {
-      try { await fetchUsers() } catch {}
-    }
-
-    tick() // immediate sync
-    timer = window.setInterval(tick, intervalMs)
-
-    // return disposer to stop polling on unmount/navigation
-    return () => { if (timer != null) { clearInterval(timer); timer = null } }
-  }
-
   function setUsers(list: User[]) { users.value = [...list] }
-  
-  async function clear() { 
+
+  async function clear() {
     await fetch(`${BASE}/users`, { method: 'DELETE' }).then(res => {
       if (!res.ok && res.status !== 204) throw new Error(`DELETE /users → ${res.status}`)
     })
     users.value = []
-    fetchedOnce.value = false
     return true
   }
 
   return {
-    users, loading, error, fetchedOnce,
-    count, realUsers, fakeUsers, byId,
-    ensureLoaded, fetchUsers, addUser, addSimulatedUser, updateUser, removeUser,
-    setUsers, clear,
-    startPolling,              // ← expose this
+    users, count,
+    ensureLoaded, fetchUsers, addUser, updateUser, removeUser,
+    setUsers, clear, connectWebSocket,
   }
 })

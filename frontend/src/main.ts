@@ -2,7 +2,7 @@ import './assets/main.css' // your Tailwind (if any) or global CSS
 
 import { createApp } from 'vue'
 import App from './App.vue'
-
+import Ripple from 'primevue/ripple'
 import PrimeVue from 'primevue/config'
 import Aura from '@primeuix/themes/aura'     // ← pick Aura, Lara, Nora, Material
 import 'primeicons/primeicons.css'           // ← still needed for icons
@@ -28,6 +28,8 @@ app.use(PrimeVue, {
     }
   }
 })
+
+app.directive('ripple', Ripple)
 
 app.use(ToastService)
 app.mount('#app')
