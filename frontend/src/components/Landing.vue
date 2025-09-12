@@ -3,16 +3,20 @@
 import { ref, reactive, onMounted, onUnmounted, watch } from 'vue' // NEW: onUnmounted, watch
 import { Form } from '@primevue/forms'
 import type { FormInstance, FormSubmitEvent } from '@primevue/forms'
-import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
-import Button from 'primevue/button'
 import { z } from 'zod'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { useToast } from 'primevue/usetoast'
 
 import { useUsersStore } from '@/stores/users.ts'
 import { storeToRefs } from 'pinia'
-import { ToggleButtonClasses } from 'primevue'
+
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
+import InputText from 'primevue/inputtext'
+import Dropdown from 'primevue/dropdown'
+import Button from 'primevue/button'
+import SelectButton from 'primevue/selectbutton';
 
 defineProps<{ msg: string }>()
 
@@ -76,6 +80,33 @@ function onFormSubmit(e: FormSubmitEvent<Record<string, unknown>>) {
   formData.name = ''
   formData.mood = ''
 }
+
+const filters = ref({
+  global: { value: null, matchMode: 'contains' },
+  name:   { value: null, matchMode: 'startsWith' },
+  mood:   { value: null, matchMode: 'startsWith' },
+  isReal: { value: null, matchMode: 'equals' },
+})
+
+const realOptions = [
+  { label: 'All',  value: null },
+  { label: 'Real', value: true },
+  { label: 'Fake', value: false },
+]
+
+const size = ref({ label: 'Normal', value: 'null' });
+const sizeOptions = ref([
+    { label: 'Compact', value: 'small' },
+    { label: 'Normal', value: 'null' },
+]);
+
+function onUpdate(u: { id: string; name: string, mood: string} ) {
+  store.updateUser(u.id, { name: u.name, mood: u.mood })
+  toast.add({ severity: 'contrast', summary: `Updated: ${u.name} is now feeling ${u.mood}`, life: 500})
+}
+function onRemove(u: { id: string }) {
+  store.removeUser(u.id)
+}
 </script>
 
 <template>
@@ -134,34 +165,95 @@ function onFormSubmit(e: FormSubmitEvent<Record<string, unknown>>) {
     <div v-if="showFlag">
       <br/>
       <h2>{{ count == 1 ? `${count} user` : `${count} users` }} submitted their mood. </h2>
-      <ul class="mt-4">
-        <div class="user-div">
-          <li v-for="u in users" :key="u.id" class="li-entry">
-            <InputText size="small" v-model="u.name" placeholder="Name" class="inline-input" :disabled="!u.isReal" />
-            <span>is feeling</span>
-            <InputText size="small" v-model="u.mood" placeholder="Mood" class="inline-input" :disabled="!u.isReal" />
-            <span
-              >and is most definitely
-              {{ u.isReal ? 'real' : 'a robot, beep-boop, jee wilikers!' }}</span
-            >
+      <br>
+      <br>
+        <SelectButton v-model="size" :options="sizeOptions" optionLabel="label" dataKey="label" />
+        <DataTable
+          :value="users"
+          dataKey="id"
+          :filters="filters"
+          :globalFilterFields="['name','mood']"
+          paginator
+          :rows="10"
+          responsiveLayout="scroll"
+          :size="size.value"
+          scrollable scrollHeight="300px"
+          removableSort
+        >
+          <template #header>
+            <div class="flex items-center column-gap: 0.5rem;">
+              <span class="p-input-icon-left">
+                <i class="pi pi-search" />
+                <InputText
+                  class="inline-btn"
+                  v-model="filters['global'].value"
+                  placeholder="Search name or mood…"
+                />
+              </span>
 
-            <Button v-if="u.isReal"
-              size="small"
-              class="inline-btn"
-              label="Update"
-              @click="store.updateUser(u.id, { name: u.name, mood: u.mood });
-              toast.add({ severity: 'contrast', summary: `Updated user to ${u.name} feeling ${u.mood}`, life: 500 })"
-            />
-            <Button v-if="u.isReal"
-              size="small"
-              class="inline-btn"
-              label="Remove"
-              severity="danger"
-              @click="store.removeUser(u.id)"
-            />
-          </li>
-        </div>
-      </ul>
+              <Dropdown
+                class="inline-btn"
+                v-model="filters['isReal'].value"
+                :options="realOptions"
+                optionLabel="label"
+                optionValue="value"
+                placeholder="All users"
+                size="small"
+              />
+            </div>
+          </template>
+
+          <Column field="name" header="Name" sortable>
+            <template #body="{ data }">
+              <InputText
+                v-model="data.name"
+                size="small"
+                class="inline-input"
+                :disabled="!data.isReal"
+              />
+            </template>
+          </Column>
+
+          <Column field="mood" header="Mood" sortable>
+            <template #body="{ data }">
+              <InputText
+                v-model="data.mood"
+                size="small"
+                class="inline-input"
+                :disabled="!data.isReal"
+              />
+            </template>
+          </Column>
+
+          <Column field="isReal" header="Type">
+            <template #body="{ data }">
+              <span :class="data.isReal ? 'text-green-600' : 'text-500'">
+                {{ data.isReal ? 'Real' : 'Fake' }}
+              </span>
+            </template>
+          </Column>
+
+          <Column header="Actions">
+            <template #body="{ data }">
+              <Button
+                v-if="data.isReal"
+                size="small"
+                class="inline-btn"
+                label="Update"
+                @click="onUpdate(data)"
+              />
+              <Button
+                v-if="data.isReal"
+                size="small"
+                class="inline-btn"
+                label="Remove"
+                severity="danger"
+                @click="onRemove(data)"
+              />
+            </template>
+          </Column>
+        </DataTable>
+
     </div>
   </div>
 </template>
@@ -183,18 +275,6 @@ h3 {
 }
 .greetings {
   margin-bottom: 15vh;
-}
-
-.li-entry {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 10px 0;
-  padding: 10px 12px;
-  border: 1px solid var(--p-surface-300, #e5e7eb);
-  border-radius: 10px;
-  background: var(--p-surface-0, #fff);
 }
 
 .inline-input {
